@@ -1,0 +1,156 @@
+---
+title: Genetic association analysis in sugarcane (Saccharum spp.) for sucrose accumulation
+  in humid environments in Colombia
+author: "Carolina Saavedra, Fernando S Aguilar"
+date: "2023-10-02"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+Upoad required libraries
+```{r cars, echo=FALSE}
+list.of.packages <- c("openxlsx","GWASpoly", "tidyverse","data.table","gtools","adegenet")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]                       
+if(length(new.packages)) {install.packages(new.packages)}
+
+invisible(lapply(list.of.packages, library, character.only = TRUE))      
+
+rm(list = ls())
+
+source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/READ_GWAS_SNP_Remover1.R")#Function from GWASpoly modified to remove significant SNPs and to read genotypic data with multiple cores
+source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/qqPlod_CSD.R") #Function to plot the 
+
+```
+
+## Data input
+- Phenotypic data corresponds to the BLUPs from the phenotypic analysis for early (*meses_10*) and normal (*meses_13*) maturity. Blups for 208 gentypes from the diverse panel.
+
+- Genotypic data correspons to sequencing GBS, RADSeq and WGS for 519 genotypes.
+
+
+```{r pressure, echo=FALSE}
+# genofile = "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/Base_Genotype.csv"
+
+genofile = "//192.168.153.238/biodata10/rstudio/fernando/10.GWAS_WUE/01.UEA_Nov2022/Base_Genotipica_137889_SNPs_Merged_GBS_Earlham_Novogene50X_24oct2022.csv"
+
+phenofile = "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/DT/Blups_10_y_13_meses_sacarosa.csv"
+
+#Read data for GWAS
+data = read.GWASpoly(ploidy = 10, pheno.file = phenofile, geno.file = genofile,format = "ACGT",n.traits = 2, delim = ",") #snp_remover = NULL is when no markers are removed from analysis. colIDy = 1 is the column where the names of the genotypes are.
+
+# Kop = as.matrix(fread("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/Kinship_Matrix.csv", data.table = F) %>% remove_rownames() %>% column_to_rownames("Name"))
+
+data1 = set.K(data = data, n.core = 5, LOCO = F) #To compute Kinship matrix
+# data1 = set.K(data = data, K = Kop,n.core = 5, LOCO = F) #To compute Kinship matrix
+# load("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/Archivo_GWASpoly_Leido_readGwas_base_137889.RData")
+
+params = set.params(fixed = c("Q1","Q2","Q3","Q4"), fixed.type = c("numeric","numeric","numeric","numeric"), geno.freq = 1-10/220) #Fixed parameters for GWAS
+
+#Running GWAS for 12 genetic models
+dt = GWASpoly(data = data1, models = c("general","additive","1-dom","2-dom","3-dom","4-dom","5-dom"), traits = c("meses_10","meses_13"), params = params, n.core = 1, quiet = F)
+
+# dt = GWASpoly(data = data1, models = c("additive"), traits = c("meses_13"), params = params, n.core = 1, quiet = F)
+
+#Setting the threshold for significant SNPs
+dt= set.threshold(data = dt, method = "FDR", level = 0.05, n.permute = 1000, n.core = 6)
+
+# save(dt, file = "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/GWAS_Sacarosa_10_y_13_mds_GWASpoly2_13.RData")
+#Obtaining the significant SNPs without bp window
+qtl = get.QTL(data = dt) 
+
+write.xlsx(qtl, "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/SNPs_Asociados_137889_SNPs_10_y_13_mds_GWASpoly2_13.xlsx", quote = F, sep = ",")
+
+```
+
+# False positives
+Identification of false positives with QQ-plot
+```{r}
+#QQ-Plot for False positives
+tr = "meses_13"
+md = "additive"
+qw = subset(qtl, qtl$Trait == tr & qtl$Model == md)
+
+#Creating dataframe with Pvalues
+sc = as.data.frame(dt@scores$meses_10) %>% rownames_to_column("Marker") %>% left_join(dt@map) #Will all SNPs
+sc = sc[, c("Marker", "Chrom", "Position", "Ref", "Alt", md)] # Data with only scores from the model of interest
+
+## Runing multiple times without most significant markers
+grm = GWAS_CSD(ploidy = 10, pheno.file = phenofile, geno.file = genofile, format = "ACGT", n.traits = 2, delim = ",", snp_remover = subset(qw, qw$Score > 5.5)$Marker, colIDy = 1)
+
+grm  = set.K(data = grm, n.core = 5, LOCO = F)
+grm = GWASpoly(data = grm, models = c("additive"), traits = c("meses_13"), params = params, n.core = 1, quiet = F)
+
+sc1 = as.data.frame(grm@scores$meses_13) %>% rownames_to_column("Marker") %>% left_join(grm@map) #Without the n significant SNPs
+sc1 = sc1[, c("Marker", "Chrom", "Position", "Ref", "Alt", md)]# Data with only scores from the model of interest
+colnames(sc1)[6] <- "SNPs_4" # Renaming the columns to join. Change name each time the analysis is runned
+sc = left_join(sc, sc1) # Joining with the scores from all SNPs
+
+## Repeat lines 69 - 77 until there is no deviation frm the null hypothesis. See materials and methos from the paper
+colnames(asd)[1:3] <- c("SNP","Chromosome","Position")
+tiff(filename = "Figure_X.tiff", width = , height = , units = , pointsize = , compression = "lsw" )
+qqCDS(data = asd, modelos = NULL, ef_fix = c(1,2,3,4,5), Q1 = 0.025, Q3 = 0.975, escala=1, yim = 0.5,xim = 0.02, colores = NULL)
+dev.off()
+```
+
+#Estimating R2
+The poercentage of the phenotypic variability explained by each marker was computed using the Cox and Snell Pseudo R2 (more details see the paper)
+
+```{r}
+source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/Fit_R2_CSD.R") #Function created to estimate the Cox and Snell Pseudo R2
+source("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/makefull.R") #Function to plot the 
+source("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/design_geneal.R") #Function to plot the 
+source("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/scorecalc_general.R") #Function to plot the 
+
+nm = names(dt@scores)
+md = unique(qtl$Model)
+r2s = NULL
+for (i in 1:length(nm)) {
+  qt = subset(qtl, Trait == nm[i])
+  for (k in 1:length(md)) {
+    qt1= subset(qt, Model == md[k])
+    if (nrow(qt1) >0) {
+      qwe = fit.QTL_CSD(data = dt, trait = nm[i], qtl = qt1[,c("Marker","Model")],fixed = data.frame(Effect=c("Q1","Q2","Q3","Q4"), Type=c("numeric", "numeric","numeric","numeric"))) 
+      qwe$Trait= nm[i]
+      r2s = rbind(r2s, qwe) 
+    } else {
+      r2s = r2s
+    }
+    
+  }
+}
+
+# write.xlsx(r2s, "../R2_Marcadores.xlsx")
+
+```
+
+
+# Efect markers General model
+Estimation of the effect for the markers in the general model. The function was modified from the function in GWASpoly to output the beta estimates.
+
+```{r}
+source("//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/GWASpoly_General_efectos_V1.R")
+
+gen = GWASpoly_general(data = data1,models ="general" ,traits=c("meses_10","meses_13"),params=params,n.core=1,quiet=F)
+
+nm = names(gen@gene_effec$meses_13)
+efe = NULL
+for (op in nm) {
+  a = lapply(seq_along(gen@gene_effec[["meses_13"]][[op]]), function(x) data.frame(Efecto = gen@gene_effec[["meses_13"]][[op]][[x]], Dosis = names(gen@gene_effec[["meses_13"]][[op]][[x]]), Trait = "meses_13", Marker = names(gen@gene_effec[["meses_13"]][[op]])[[x]]))
+  a1 = rbindlist(a)
+  efe = rbind(efe, a1)
+  rm(a);rm(a1)
+}
+
+m10 = efe
+m13 = efe
+efectos = rbind(m10, m13)
+fwrite(efectos, "Efecto_SNPs_Modelos_General_10_y_13_meses_137853_SNPs.csv", sep = ",",na = NA, quote = F)
+
+```
+
