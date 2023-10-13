@@ -23,8 +23,8 @@ invisible(lapply(list.of.packages, library, character.only = TRUE))
 
 rm(list = ls())
 
-source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/READ_GWAS_SNP_Remover1.R")#Function from GWASpoly modified to remove significant SNPs and to read genotypic data with multiple cores
-source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/qqPlod_CSD.R") #Function to plot the 
+source("1.Functions/READ_GWAS_SNP_Remover1.R") #Function from GWASpoly modified to remove significant SNPs and to read genotypic data with multiple cores
+source("1.Functions/qqPlod_CSD.R") #Function to plot the 
 
 ```
 
@@ -35,11 +35,8 @@ source("//192.168.153.238/biodata10/rstudio/fernando/20.Funciones/qqPlod_CSD.R")
 
 
 ```{r pressure, echo=FALSE}
-# genofile = "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/Base_Genotype.csv"
-
-genofile = "//192.168.153.238/biodata10/rstudio/fernando/10.GWAS_WUE/01.UEA_Nov2022/Base_Genotipica_137889_SNPs_Merged_GBS_Earlham_Novogene50X_24oct2022.csv"
-
-phenofile = "//192.168.153.238/biodata10/rstudio/fernando/15.Tesis_CSD/DT/Blups_10_y_13_meses_sacarosa.csv"
+genofile = "Genotypic_data_137889SNPs.csv"
+phenofile = "Blups_10_y_13_meses_sacarosa.csv"
 
 #Read data for GWAS
 data = read.GWASpoly(ploidy = 10, pheno.file = phenofile, geno.file = genofile,format = "ACGT",n.traits = 2, delim = ",") #snp_remover = NULL is when no markers are removed from analysis. colIDy = 1 is the column where the names of the genotypes are.
