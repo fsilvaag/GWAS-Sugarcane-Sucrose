@@ -1,5 +1,5 @@
 Within this folder you can find all functions created within the paper.
-Most of the functions were derived from the functions of [I'm an inline-style link](https://www.google.com) [GWASpoly](https://github.com/jendelman/GWASpoly/tree/master) by modifying some lines to obtain the desired results.
+Most of the functions were derived from the functions of [GWASpoly](https://github.com/jendelman/GWASpoly/tree/master) by modifying some lines to obtain the desired results.
 
 1.design_general.R = Function to create the genotypic information under the general model
 2.GWASpoly_General_efectos.R = Same function proposed in GWASpoly but modified to export the effect of each marker for the general model
